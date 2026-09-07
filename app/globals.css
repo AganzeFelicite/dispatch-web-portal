@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* Dispatch brand tokens — exposed to Tailwind as bg-navy, text-gold, etc. */
+@theme {
+  --color-navy: #0b1f4d;
+  --color-royal: #1e46a8;
+  --color-blue: #2f63d6;
+  --color-gold: #f5a623;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-surface: #ffffff;
+  --color-canvas: #f5f7fb;
+  --color-line: #e2e8f0;
+
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
