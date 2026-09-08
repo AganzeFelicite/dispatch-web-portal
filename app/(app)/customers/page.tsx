@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import type { CustomerRow, Paginated } from "@/lib/types";
 
@@ -38,7 +39,9 @@ export default function CustomersPage() {
             <tbody>
               {data.items.map((c) => (
                 <tr key={c.id} className="border-b border-line last:border-0 hover:bg-canvas/60">
-                  <td className="px-4 py-3">{c.name}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/customers/${c.id}`} className="text-royal hover:underline">{c.name}</Link>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs">{c.phone}</td>
                   <td className="px-4 py-3 text-xs">{c.type.toLowerCase()}</td>
                   <td className="px-4 py-3 text-muted">{c.businessName ?? "—"}</td>

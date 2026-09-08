@@ -10,6 +10,8 @@ import {
   type DriverRow,
   type Paginated,
   type VehicleTier,
+  type WalletEntryKind,
+  type WalletView,
 } from "@/lib/types";
 
 interface Earnings {
@@ -169,6 +171,8 @@ function DriverPanel({ id }: { id: string }) {
         </div>
       )}
 
+      <WalletPanel id={id} />
+
       <h3 className="mt-6 text-sm font-semibold text-ink">Vehicles</h3>
       <ul className="mt-2 space-y-1 text-sm">
         {d.vehicles.length === 0 && <li className="text-muted">No vehicles yet.</li>}
@@ -206,6 +210,97 @@ function DriverPanel({ id }: { id: string }) {
         </button>
       </div>
     </section>
+  );
+}
+
+const WALLET_KIND_LABEL: Record<WalletEntryKind, string> = {
+  TRIP_EARNING: "Trip earning",
+  CASH_COMMISSION: "Commission on cash trip",
+  WITHDRAWAL: "Withdrawal",
+  RECHARGE: "Recharge",
+  ADJUSTMENT: "Adjustment",
+};
+
+/** Porter-style wallet: cash trips debit commission, online trips credit the driver; ops record recharges. */
+function WalletPanel({ id }: { id: string }) {
+  const qc = useQueryClient();
+  const wallet = useQuery({
+    queryKey: ["driver-wallet", id],
+    queryFn: () => api.get<WalletView>(`/drivers/${id}/wallet`),
+  });
+  const [kind, setKind] = useState<"RECHARGE" | "ADJUSTMENT">("RECHARGE");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const record = useMutation({
+    mutationFn: () => api.post(`/drivers/${id}/wallet/entries`, { kind, amount: Number(amount), note: note || null }),
+    onSuccess: () => {
+      setAmount("");
+      setNote("");
+      qc.invalidateQueries({ queryKey: ["driver-wallet", id] });
+    },
+  });
+
+  if (!wallet.data) return null;
+  const w = wallet.data;
+  const due = w.balance < w.minBalance ? -w.balance : 0;
+  return (
+    <div className="mt-6 rounded-lg border border-line p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink">Wallet</h3>
+        <div className={`text-lg font-semibold ${w.balance < 0 ? "text-red-600" : "text-navy"}`}>
+          {money(w.balance)}
+        </div>
+      </div>
+      {due > 0 ? (
+        <p className="mt-1 text-sm text-red-600">
+          Owes {money(due)} in commission — cannot go online until recharged (floor {money(w.minBalance)}).
+        </p>
+      ) : (
+        <p className="mt-1 text-sm text-muted">
+          Cash trips debit commission, MoMo trips credit the driver&apos;s share. Floor {money(w.minBalance)}.
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          <span className="mb-1 block text-muted">Record</span>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as "RECHARGE" | "ADJUSTMENT")}
+            className="rounded-lg border border-line px-2 py-2"
+          >
+            <option value="RECHARGE">Recharge (driver paid in)</option>
+            <option value="ADJUSTMENT">Adjustment (+/-)</option>
+          </select>
+        </label>
+        <Field label="Amount (RWF)" value={amount} onChange={setAmount} />
+        <Field label="Note" value={note} onChange={setNote} />
+        <button
+          onClick={() => record.mutate()}
+          disabled={record.isPending || !amount || Number.isNaN(Number(amount))}
+          className="rounded-lg bg-royal px-4 py-2 text-sm font-medium text-white hover:bg-blue disabled:opacity-60"
+        >
+          {record.isPending ? "…" : "Record"}
+        </button>
+      </div>
+      {record.error && <p className="mt-2 text-sm text-red-600">{String(record.error)}</p>}
+
+      <ul className="mt-3 divide-y divide-line text-sm">
+        {w.entries.length === 0 && <li className="py-2 text-muted">No movements yet.</li>}
+        {w.entries.slice(0, 10).map((e) => (
+          <li key={e.id} className="flex items-center justify-between gap-3 py-2">
+            <div>
+              <div className="font-medium">{WALLET_KIND_LABEL[e.kind]}</div>
+              <div className="text-xs text-muted">{e.note ?? e.createdAt.slice(0, 16).replace("T", " ")}</div>
+            </div>
+            <div className={`font-mono ${e.amount < 0 ? "text-red-600" : "text-green-700"}`}>
+              {e.amount > 0 ? "+" : ""}
+              {money(e.amount)}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

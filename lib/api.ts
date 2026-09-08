@@ -1,5 +1,5 @@
 import { clearSession, getToken } from "./auth";
-import type { LoginResponse } from "./types";
+import type { CustomerSession, LoginResponse } from "./types";
 
 // Same-origin by default; Next.js proxies /api/* to the backend (see next.config.ts).
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "/api";
@@ -63,6 +63,15 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
 };
+
+/** Portal sign-in (customer OTP). Returns the dev code when the backend exposes it. */
+export function requestCustomerOtp(phone: string): Promise<{ sent: boolean; devCode: string | null }> {
+  return api.post("/customer/auth/request-otp", { phone });
+}
+
+export function verifyCustomerOtp(phone: string, code: string): Promise<CustomerSession> {
+  return api.post<CustomerSession>("/customer/auth/verify-otp", { phone, code });
+}
 
 export function login(email: string, password: string): Promise<LoginResponse> {
   return api.post<LoginResponse>("/auth/login", { email, password });

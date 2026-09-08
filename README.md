@@ -26,6 +26,30 @@ console/
     └── types.ts              TypeScript mirrors of the backend DTOs
 ```
 
+## Business portal and customer accounts
+
+`/portal` is the self-service dashboard for business customers (phone + OTP sign-in, the same as
+the customer app): spend, trips, per-day and per-vehicle breakdowns, recent trips, CSV statement.
+Ops see the identical dashboard for any account at `/customers/{id}`. Both render
+`components/CustomerDashboard.tsx`; the charts are plain SVG in `components/Columns.tsx`.
+The portal shares the bearer slot with the console, so one browser holds one identity at a time.
+Businesses can also book from the portal (`/portal/book`); the form is `components/BookingForm.tsx`,
+shared with the ops New booking page.
+
+## Place search (booking form)
+
+The map picker's search box is live typeahead, the same as the mobile app: suggestions appear as
+you type, each with the place name and its street/area, biased to Kigali and limited to Rwanda.
+`lib/places.ts` mirrors `mobile/lib/core/geo.dart`:
+
+- `NEXT_PUBLIC_GOOGLE_PLACES_KEY` set → Google Places API (New) autocomplete (shops, buildings,
+  gates); coordinates are fetched only for the chosen suggestion, one billing session per pick.
+  Restrict the key to the console's origin, it ships to the browser.
+- Blank → free OpenStreetMap search (komoot Photon). Fine for dev and low volume.
+
+Enter picks the first suggestion, Escape closes the list, clicking the map still drops a pin.
+Reverse geocoding of a map click uses Mapbox (`NEXT_PUBLIC_MAPBOX_TOKEN`).
+
 ## The pattern
 
 `bookings/page.tsx` is the template for every list screen: a `useQuery` calling `apiFetch` (which

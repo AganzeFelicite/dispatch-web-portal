@@ -3,7 +3,8 @@
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Map as MbMap, Marker } from "mapbox-gl";
 import { useEffect, useRef, useState } from "react";
-import { MAPBOX_TOKEN, geocode, reverseGeocode, type GeoFeature } from "@/lib/mapbox";
+import { MAPBOX_TOKEN, reverseGeocode } from "@/lib/mapbox";
+import { placeText, resolvePlace, searchPlaces, type Place } from "@/lib/places";
 
 export interface LatLngText {
   text: string;
@@ -29,7 +30,30 @@ export default function MapPicker({ pickup, dropoff, onChange, readOnly, height 
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<"pickup" | "dropoff">("pickup");
   const [search, setSearch] = useState("");
-  const [results, setResults] = useState<GeoFeature[]>([]);
+  const [results, setResults] = useState<Place[]>([]);
+  const [searching, setSearching] = useState(false);
+  // Google bills autocomplete + details as one session; a fresh token per chosen place.
+  const session = useRef(crypto.randomUUID());
+  const latest = useRef(0);
+
+  // Live suggestions as you type, like the app: 300 ms after the last keystroke, latest reply wins.
+  useEffect(() => {
+    if (search.trim().length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const id = ++latest.current;
+    const t = setTimeout(async () => {
+      const r = await searchPlaces(search, session.current);
+      if (id === latest.current) {
+        setResults(r);
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Keep the latest handler/state for the (once-bound) click listener.
   const state = useRef({ pickup, dropoff, mode, onChange, readOnly });
@@ -131,12 +155,15 @@ export default function MapPicker({ pickup, dropoff, onChange, readOnly, height 
     };
   }, [pickup, dropoff, ready]);
 
-  async function runSearch() {
-    setResults(await geocode(search));
-  }
-
-  function choose(f: GeoFeature) {
-    const point: LatLngText = { text: f.name, lat: f.lat, lng: f.lng };
+  async function choose(p: Place) {
+    let place = p;
+    try {
+      place = await resolvePlace(p, session.current);
+    } catch {
+      return;
+    }
+    session.current = crypto.randomUUID();
+    const point: LatLngText = { text: placeText(place), lat: place.lat, lng: place.lng };
     const next = {
       pickup: mode === "pickup" ? point : pickup,
       dropoff: mode === "dropoff" ? point : dropoff,
@@ -171,39 +198,36 @@ export default function MapPicker({ pickup, dropoff, onChange, readOnly, height 
               </button>
             ))}
           </div>
-          <div className="flex flex-1 gap-2">
+          <div className="relative min-w-0 flex-1">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), runSearch())}
-              placeholder={`Search an address for ${mode}…`}
-              className="min-w-0 flex-1 rounded-lg border border-line px-3 py-1.5 text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && results[0]) {
+                  e.preventDefault();
+                  choose(results[0]);
+                }
+                if (e.key === "Escape") setResults([]);
+              }}
+              placeholder={`Shop, building, street… for ${mode}`}
+              autoComplete="off"
+              className="w-full rounded-lg border border-line px-3 py-1.5 text-sm"
             />
-            <button
-              type="button"
-              onClick={runSearch}
-              className="rounded-lg border border-royal px-3 py-1.5 text-sm text-royal"
-            >
-              Search
-            </button>
+            {(results.length > 0 || searching) && (
+              <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto divide-y divide-line rounded-lg border border-line bg-surface text-sm shadow-lg">
+                {searching && results.length === 0 && <li className="px-3 py-2 text-muted">Searching…</li>}
+                {results.map((r, i) => (
+                  <li key={r.placeId ?? `${r.lat},${r.lng},${i}`}>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(r)} className="w-full px-3 py-2 text-left hover:bg-canvas">
+                      <div className="font-medium text-ink">{r.name}</div>
+                      {r.address && <div className="text-xs text-muted">{r.address}</div>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
-      )}
-
-      {results.length > 0 && (
-        <ul className="mb-2 divide-y divide-line rounded-lg border border-line bg-surface text-sm">
-          {results.map((r, i) => (
-            <li key={i}>
-              <button
-                type="button"
-                onClick={() => choose(r)}
-                className="w-full px-3 py-2 text-left hover:bg-canvas"
-              >
-                {r.name}
-              </button>
-            </li>
-          ))}
-        </ul>
       )}
 
       <div ref={container} style={{ height }} className="w-full overflow-hidden rounded-xl" />

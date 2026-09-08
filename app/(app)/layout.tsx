@@ -12,6 +12,7 @@ const NAV = [
   { href: "/drivers", label: "Drivers" },
   { href: "/rate-cards", label: "Rate cards" },
   { href: "/payouts", label: "Payouts" },
+  { href: "/issues", label: "Issues" },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

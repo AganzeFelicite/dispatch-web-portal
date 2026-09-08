@@ -45,6 +45,10 @@ export default function BookingDetailPage() {
     mutationFn: (reason: string) => api.post(`/bookings/${id}/cancel`, { reason }),
     onSuccess: invalidate,
   });
+  const autoAssign = useMutation({
+    mutationFn: () => api.post(`/bookings/${id}/auto-assign`),
+    onSuccess: invalidate,
+  });
 
   if (booking.isLoading) return <p className="text-sm text-muted">Loading…</p>;
   if (booking.error || !booking.data)
@@ -60,9 +64,30 @@ export default function BookingDetailPage() {
       <header className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-mono text-2xl font-semibold text-navy">{b.reference}</h1>
-          <p className="text-sm text-muted">{titleCase(b.status)}</p>
+          <p className="text-sm text-muted">
+            {titleCase(b.status)}
+            {b.awaitingAcceptance && " · waiting for the driver to accept"}
+          </p>
         </div>
         <div className="flex gap-2">
+          {b.shareUrl && (
+            <button
+              onClick={() => navigator.clipboard.writeText(b.shareUrl!)}
+              title={b.shareUrl}
+              className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-navy hover:bg-canvas"
+            >
+              Copy tracking link
+            </button>
+          )}
+          {b.status === "NEW" && (
+            <button
+              onClick={() => autoAssign.mutate()}
+              disabled={autoAssign.isPending}
+              className="rounded-lg bg-royal px-4 py-2 text-sm font-medium text-white hover:bg-blue disabled:opacity-60"
+            >
+              {autoAssign.isPending ? "Finding driver…" : "Offer to nearest driver"}
+            </button>
+          )}
           {next && (
             <button
               onClick={() => advance.mutate(next)}
@@ -84,9 +109,9 @@ export default function BookingDetailPage() {
         </div>
       </header>
 
-      {(advance.error || cancel.error) && (
+      {(advance.error || cancel.error || autoAssign.error) && (
         <p className="mb-4 text-sm text-red-600">
-          {((advance.error || cancel.error) as Error).message}
+          {((advance.error || cancel.error || autoAssign.error) as Error).message}
         </p>
       )}
 
@@ -114,6 +139,14 @@ export default function BookingDetailPage() {
         </Card>
         <Card title="Price">
           <p className="text-lg font-semibold text-navy">{money(b.quotedPrice)}</p>
+          {(b.receiverName || b.goodsType || b.scheduledAt || b.rating) && (
+            <p className="mt-1 text-xs text-muted">
+              {b.scheduledAt && <>Scheduled {b.scheduledAt.slice(0, 16).replace("T", " ")} · </>}
+              {b.goodsType && <>{b.goodsType} · </>}
+              {b.receiverName && <>To {b.receiverName}{b.receiverPhone ? ` (${b.receiverPhone})` : ""} · </>}
+              {b.rating && <>Rated {"★".repeat(b.rating)}{b.ratingComment ? ` “${b.ratingComment}”` : ""}</>}
+            </p>
+          )}
         </Card>
       </div>
 

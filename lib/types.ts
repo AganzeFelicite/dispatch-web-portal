@@ -94,6 +94,17 @@ export interface BookingDetail {
   cancelReason: string | null;
   createdAt: string;
   statusHistory: StatusEvent[];
+  receiverName?: string | null;
+  receiverPhone?: string | null;
+  goodsType?: string | null;
+  scheduledAt?: string | null;
+  driverEarning?: number | null;
+  rating?: number | null;
+  ratingComment?: string | null;
+  paymentMethod?: string;
+  awaitingAcceptance?: boolean;
+  /** Receiver tracking page (no login); null until a driver is assigned. */
+  shareUrl?: string | null;
 }
 
 export interface QuoteResult {
@@ -103,6 +114,27 @@ export interface QuoteResult {
   price: number;
   rateCardId: string;
   breakdown: { baseFare: number; perKm: number; minFare: number; applied: string };
+}
+
+/** A customer's account dashboard (GET /customer/dashboard, GET /customers/{id}/dashboard). */
+export interface CustomerDashboard {
+  from: string;
+  to: string;
+  trips: number;
+  completed: number;
+  cancelled: number;
+  active: number;
+  spend: number;
+  avgFare: number;
+  byDay: { date: string; trips: number; spend: number }[];
+  byTier: { tier: VehicleTier; trips: number; spend: number }[];
+}
+
+/** Phone + OTP sign-in for the business portal. */
+export interface CustomerSession {
+  token: string;
+  expiresInSeconds: number;
+  customer: { id: string; name: string; phone: string };
 }
 
 export interface CustomerRow {
@@ -192,4 +224,35 @@ export interface DailyMetrics {
   collected: number;
   commission: number;
   driverPayout: number;
+}
+
+export type WalletEntryKind = "TRIP_EARNING" | "CASH_COMMISSION" | "WITHDRAWAL" | "RECHARGE" | "ADJUSTMENT";
+
+export interface WalletEntry {
+  id: string;
+  kind: WalletEntryKind;
+  amount: number;
+  bookingId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+/** Driver wallet (Porter-style settlement): balance = sum of signed entries. */
+export interface WalletView {
+  balance: number;
+  minBalance: number;
+  entries: WalletEntry[];
+}
+
+export interface IssueView {
+  id: string;
+  bookingId: string;
+  bookingReference: string | null;
+  reportedBy: "CUSTOMER" | "DRIVER";
+  category: string;
+  message: string;
+  status: "OPEN" | "RESOLVED";
+  resolution: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
 }
