@@ -91,7 +91,7 @@ export default function BookingsPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3">{b.customerName}</td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="whitespace-nowrap px-4 py-3 text-xs">
                     {tierLabel(b.tier)}
                     {b.serviceType === "RIDE" && (
                       <span className="ml-2 rounded-full bg-royal/10 px-2 py-0.5 text-[10px] font-medium text-royal">Ride</span>
