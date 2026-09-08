@@ -1,7 +1,10 @@
 // TypeScript mirrors of the backend DTOs. Amounts are BigDecimal server-side, serialized as
 // JSON numbers.
 
-export type VehicleTier = "MOTO" | "CARGO_MOTO" | "PICKUP" | "MINI_TRUCK";
+export type VehicleTier = "MOTO" | "CARGO_MOTO" | "PICKUP" | "MINI_TRUCK" | "MOTO_TAXI" | "CAB";
+
+/** Moving goods, or carrying a person (Quick Ride). */
+export type ServiceType = "GOODS" | "RIDE";
 
 export type BookingStatus =
   | "NEW"
@@ -17,7 +20,14 @@ export type PaymentMethod = "MOMO" | "CASH";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
 export type PayoutStatus = "PENDING" | "SENT" | "FAILED";
 
+/** Goods vehicles — what an ops booking can be placed on. */
 export const TIERS: VehicleTier[] = ["MOTO", "CARGO_MOTO", "PICKUP", "MINI_TRUCK"];
+
+/** Quick Ride vehicles: passengers, not parcels. */
+export const RIDE_TIERS: VehicleTier[] = ["MOTO_TAXI", "CAB"];
+
+/** Everything a driver can own and a rate card can price. */
+export const ALL_TIERS: VehicleTier[] = [...TIERS, ...RIDE_TIERS];
 
 /** Customer-facing names + capacity lines, kept identical to mobile/lib/core/vehicle.dart. */
 export const TIER_META: Record<VehicleTier, { label: string; capacity: string }> = {
@@ -25,7 +35,20 @@ export const TIER_META: Record<VehicleTier, { label: string; capacity: string }>
   CARGO_MOTO: { label: "Cargo moto", capacity: "up to 100 kg" },
   PICKUP: { label: "Pickup", capacity: "up to 800 kg" },
   MINI_TRUCK: { label: "Mini truck", capacity: "up to 2 tonnes" },
+  MOTO_TAXI: { label: "Moto taxi", capacity: "1 passenger" },
+  CAB: { label: "Cab", capacity: "up to 4 passengers" },
 };
+
+/** One driver's answer to a ride offer, for the dispatch log. */
+export interface OfferAttempt {
+  driverId: string;
+  driverName: string | null;
+  round: number;
+  price: number | null;
+  status: "SENT" | "ACCEPTED" | "DECLINED" | "EXPIRED" | "TAKEN";
+  sentAt: string;
+  respondedAt: string | null;
+}
 
 export interface PageMeta {
   nextCursor: string | null;
@@ -54,6 +77,7 @@ export interface BookingRow {
   quotedPrice: number | null;
   assignedDriverName: string | null;
   createdAt: string;
+  serviceType?: ServiceType;
 }
 
 export interface Party {
@@ -105,6 +129,10 @@ export interface BookingDetail {
   awaitingAcceptance?: boolean;
   /** Receiver tracking page (no login); null until a driver is assigned. */
   shareUrl?: string | null;
+  serviceType?: ServiceType;
+  /** Quick Ride: what the rider offered, and how many are travelling. */
+  riderPrice?: number | null;
+  passengers?: number | null;
 }
 
 export interface QuoteResult {

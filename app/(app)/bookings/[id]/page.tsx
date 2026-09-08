@@ -8,6 +8,7 @@ import { ApiError, api } from "@/lib/api";
 import { money, tierLabel, titleCase } from "@/lib/format";
 import type {
   BookingDetail,
+  OfferAttempt,
   BookingStatus,
   DriverDetail,
   DriverRow,
@@ -65,8 +66,9 @@ export default function BookingDetailPage() {
         <div>
           <h1 className="font-mono text-2xl font-semibold text-navy">{b.reference}</h1>
           <p className="text-sm text-muted">
-            {titleCase(b.status)}
+            {b.serviceType === "RIDE" ? "Quick ride" : "Goods"} · {titleCase(b.status)}
             {b.awaitingAcceptance && " · waiting for the driver to accept"}
+            {b.serviceType === "RIDE" && b.riderPrice != null && ` · rider offered ${money(b.riderPrice)}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -108,6 +110,8 @@ export default function BookingDetailPage() {
           )}
         </div>
       </header>
+
+      {b.serviceType === "RIDE" && <OfferLog bookingId={b.id} />}
 
       {(advance.error || cancel.error || autoAssign.error) && (
         <p className="mb-4 text-sm text-red-600">
@@ -341,5 +345,56 @@ function Card({
       <div className="mb-1 text-xs uppercase tracking-wide text-muted">{title}</div>
       {children}
     </div>
+  );
+}
+
+const OFFER_STYLES: Record<OfferAttempt["status"], string> = {
+  SENT: "bg-blue-50 text-blue-700",
+  ACCEPTED: "bg-green-50 text-green-700",
+  DECLINED: "bg-amber-50 text-amber-700",
+  EXPIRED: "bg-slate-100 text-slate-600",
+  TAKEN: "bg-slate-100 text-slate-600",
+};
+
+/** Who this ride went out to, at what price, and what each of them did about it. */
+function OfferLog({ bookingId }: { bookingId: string }) {
+  const { data, error } = useQuery({
+    queryKey: ["booking-offers", bookingId],
+    queryFn: () => api.get<OfferAttempt[]>(`/bookings/${bookingId}/offers`),
+    refetchInterval: 5000,
+  });
+  if (error) return <p className="mb-4 text-sm text-red-600">{(error as Error).message}</p>;
+  if (!data || data.length === 0) return null;
+  return (
+    <section className="mb-6 rounded-xl border border-line bg-surface p-5">
+      <h2 className="mb-1 text-sm font-semibold text-ink">Dispatch log</h2>
+      <p className="mb-3 text-xs text-muted">Drivers are offered a ride together; the first to accept wins it.</p>
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase tracking-wide text-muted">
+          <tr>
+            <th className="py-2">Driver</th>
+            <th className="py-2">Round</th>
+            <th className="py-2">Offered</th>
+            <th className="py-2">Sent</th>
+            <th className="py-2">Answer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((o, i) => (
+            <tr key={`${o.driverId}-${o.round}-${i}`} className="border-t border-line">
+              <td className="py-2">{o.driverName ?? "—"}</td>
+              <td className="py-2 text-muted">{o.round}</td>
+              <td className="py-2 tabular-nums">{money(o.price)}</td>
+              <td className="py-2 text-muted">{o.sentAt.slice(11, 19)}</td>
+              <td className="py-2">
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${OFFER_STYLES[o.status]}`}>
+                  {titleCase(o.status)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }

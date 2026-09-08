@@ -5,7 +5,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { money, tierLabel, titleCase } from "@/lib/format";
 import {
-  TIERS,
+  ALL_TIERS,
   type DriverDetail,
   type DriverRow,
   type Paginated,
@@ -193,7 +193,7 @@ function DriverPanel({ id }: { id: string }) {
             onChange={(e) => setTier(e.target.value as VehicleTier)}
             className="rounded-lg border border-line px-2 py-2"
           >
-            {TIERS.map((t) => (
+            {ALL_TIERS.map((t) => (
               <option key={t} value={t}>
                 {tierLabel(t, true)}
               </option>
