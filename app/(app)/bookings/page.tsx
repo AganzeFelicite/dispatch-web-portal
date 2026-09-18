@@ -24,18 +24,10 @@ function StatusBadge({ status }: { status: BookingStatus }) {
   );
 }
 
-const SERVICES = [
-  { key: "", label: "All" },
-  { key: "GOODS", label: "Goods" },
-  { key: "RIDE", label: "Rides" },
-] as const;
-
 export default function BookingsPage() {
-  const [service, setService] = useState<string>("");
   const { data, isLoading, error } = useQuery({
-    queryKey: ["bookings", service],
-    queryFn: () =>
-      api.get<Paginated<BookingRow>>(`/bookings?limit=50${service ? `&serviceType=${service}` : ""}`),
+    queryKey: ["bookings"],
+    queryFn: () => api.get<Paginated<BookingRow>>("/bookings?limit=50"),
   });
 
   return (
@@ -52,18 +44,6 @@ export default function BookingsPage() {
           New booking
         </Link>
       </header>
-
-      <div className="mb-4 flex overflow-hidden rounded-lg border border-line text-sm w-fit">
-        {SERVICES.map((s) => (
-          <button
-            key={s.key}
-            onClick={() => setService(s.key)}
-            className={`px-4 py-1.5 ${service === s.key ? "bg-royal text-white" : "bg-surface text-ink hover:bg-canvas"}`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
 
       {isLoading && <p className="text-sm text-muted">Loading…</p>}
       {error && <p className="text-sm text-red-600">{(error as Error).message}</p>}
@@ -93,9 +73,6 @@ export default function BookingsPage() {
                   <td className="px-4 py-3">{b.customerName}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs">
                     {tierLabel(b.tier)}
-                    {b.serviceType === "RIDE" && (
-                      <span className="ml-2 rounded-full bg-royal/10 px-2 py-0.5 text-[10px] font-medium text-royal">Ride</span>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {b.pickupText} → {b.dropoffText}

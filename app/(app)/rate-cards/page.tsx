@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { money, tierLabel } from "@/lib/format";
-import { ALL_TIERS, type Paginated, type RateCard, type VehicleTier } from "@/lib/types";
+import { TIERS, type Paginated, type RateCard, type VehicleTier } from "@/lib/types";
 
 export default function RateCardsPage() {
   const qc = useQueryClient();
@@ -53,7 +53,7 @@ export default function RateCardsPage() {
               onChange={(e) => setTier(e.target.value as VehicleTier)}
               className="w-full rounded-lg border border-line px-2 py-2"
             >
-              {ALL_TIERS.map((t) => (
+              {TIERS.map((t) => (
                 <option key={t} value={t}>
                   {tierLabel(t, true)}
                 </option>
