@@ -1,0 +1,11 @@
+# Server stack for dev and prod; values come from the .env next to it (deploy/env.example).
+# Everything else is baked into the image at build time.
+name: console
+
+services:
+  console:
+    image: ${CONSOLE_IMAGE}
+    restart: unless-stopped
+    ports:
+      # 127.0.0.1 behind nginx on prod; the Tailscale IP on dev (set CONSOLE_BIND in .env).
+      - "${CONSOLE_BIND:-127.0.0.1}:3000:3000"

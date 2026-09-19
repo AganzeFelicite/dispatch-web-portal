@@ -1,0 +1,95 @@
+name: ci
+
+# PR            → build only.
+# push to main  → build the dev image, push it, deploy to the dev server.
+# manual run    → same, to whichever server you pick (dev or prod).
+# NEXT_PUBLIC_* and BACKEND_ORIGIN are baked in at build time, so the build reads them from
+# the target GitHub Environment (vars.BACKEND_ORIGIN, secrets.NEXT_PUBLIC_MAPBOX_TOKEN, ...).
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Server to deploy to
+        type: choice
+        options: [dev, prod]
+        default: prod
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    environment: ${{ github.event_name != 'pull_request' && (inputs.environment || 'dev') || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        run: |
+          echo "image=ghcr.io/$(echo '${{ github.repository }}' | tr 'A-Z' 'a-z')" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ inputs.environment || 'dev' }}" >> "$GITHUB_OUTPUT"
+      - if: github.event_name != 'pull_request'
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          build-args: |
+            BACKEND_ORIGIN=${{ vars.BACKEND_ORIGIN || 'http://localhost:8080' }}
+            NEXT_PUBLIC_MAPBOX_TOKEN=${{ secrets.NEXT_PUBLIC_MAPBOX_TOKEN }}
+            NEXT_PUBLIC_GOOGLE_PLACES_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_PLACES_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Dev is the Arch PC on Tailscale: unreachable from GitHub, so the runner lives on the box
+  # itself and deploys locally. compose.yaml comes from this checkout; .env stays on the box.
+  deploy-dev:
+    needs: build
+    if: github.event_name == 'push' || inputs.environment == 'dev'
+    runs-on: [self-hosted, dispatch-dev]
+    permissions:
+      contents: read
+      packages: read
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+          cp deploy/compose.yaml /srv/dispatch-console/compose.yaml
+          cd /srv/dispatch-console
+          docker compose pull
+          docker compose up -d
+          docker image prune -f
+
+  # Prod is a public server: SSH_HOST / SSH_USER / SSH_KEY come from the prod Environment.
+  deploy-prod:
+    needs: build
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ship compose.yaml, pull and restart on the server
+        run: |
+          install -m600 /dev/stdin key <<< '${{ secrets.SSH_KEY }}'
+          scp -i key -o StrictHostKeyChecking=accept-new \
+            deploy/compose.yaml '${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/srv/dispatch-console/compose.yaml'
+          ssh -i key '${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}' \
+            "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin \
+             && cd /srv/dispatch-console \
+             && docker compose pull \
+             && docker compose up -d \
+             && docker image prune -f"
