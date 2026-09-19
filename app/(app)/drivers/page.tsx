@@ -1,25 +1,18 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { getStaff } from "@/lib/auth";
 import { money, tierLabel, titleCase } from "@/lib/format";
-import {
-  TIERS,
-  type DriverDetail,
+import { useVehicleTypes } from "@/lib/vehicleTypes";
+import { type DriverDetail,
   type DriverRow,
   type Paginated,
   type VehicleTier,
-  type WalletEntryKind,
-  type WalletView,
+  type DriverEarnings,
+  type LedgerEntryKind,
 } from "@/lib/types";
-
-interface Earnings {
-  trips: number;
-  gross: number;
-  commission: number;
-  payout: number;
-}
 
 export default function DriversPage() {
   const qc = useQueryClient();
@@ -116,7 +109,7 @@ function DriverPanel({ id }: { id: string }) {
   });
   const earnings = useQuery({
     queryKey: ["driver-earnings", id],
-    queryFn: () => api.get<Earnings>(`/drivers/${id}/earnings`),
+    queryFn: () => api.get<DriverEarnings>(`/drivers/${id}/earnings`),
   });
 
   const verify = useMutation({
@@ -127,7 +120,12 @@ function DriverPanel({ id }: { id: string }) {
     },
   });
 
-  const [tier, setTier] = useState<VehicleTier>("PICKUP");
+  const { data: vehicleTypes } = useVehicleTypes();
+  // Empty until the types load; the effect below selects the first one ops listed.
+  const [tier, setTier] = useState<VehicleTier>("");
+  useEffect(() => {
+    if (!tier && vehicleTypes?.length) setTier(vehicleTypes[0].code);
+  }, [tier, vehicleTypes]);
   const [plate, setPlate] = useState("");
   const addVehicle = useMutation({
     mutationFn: () => api.post(`/drivers/${id}/vehicles`, { tier, plate }),
@@ -163,15 +161,16 @@ function DriverPanel({ id }: { id: string }) {
       </div>
 
       {earnings.data && (
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Mini label="Paid trips" value={String(earnings.data.trips)} />
-          <Mini label="Gross" value={money(earnings.data.gross)} />
-          <Mini label="Commission" value={money(earnings.data.commission)} />
-          <Mini label="Payout" value={money(earnings.data.payout)} />
-        </div>
+        <>
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Mini label="Trips (30 d)" value={String(earnings.data.summary.trips)} />
+            <Mini label="Customers paid" value={money(earnings.data.summary.gross)} />
+            <Mini label="Commission" value={money(earnings.data.summary.commission)} />
+            <Mini label="Driver share" value={money(earnings.data.summary.driverShare)} />
+          </div>
+          <EarningsPanel id={id} earnings={earnings.data} />
+        </>
       )}
-
-      <WalletPanel id={id} />
 
       <h3 className="mt-6 text-sm font-semibold text-ink">Vehicles</h3>
       <ul className="mt-2 space-y-1 text-sm">
@@ -193,9 +192,9 @@ function DriverPanel({ id }: { id: string }) {
             onChange={(e) => setTier(e.target.value as VehicleTier)}
             className="rounded-lg border border-line px-2 py-2"
           >
-            {TIERS.map((t) => (
-              <option key={t} value={t}>
-                {tierLabel(t, true)}
+            {(vehicleTypes ?? []).map((t) => (
+              <option key={t.code} value={t.code}>
+                {tierLabel(t.code, true)}
               </option>
             ))}
           </select>
@@ -213,84 +212,57 @@ function DriverPanel({ id }: { id: string }) {
   );
 }
 
-const WALLET_KIND_LABEL: Record<WalletEntryKind, string> = {
+const LEDGER_KIND_LABEL: Record<LedgerEntryKind, string> = {
   TRIP_EARNING: "Trip earning",
-  CASH_COMMISSION: "Commission on cash trip",
-  WITHDRAWAL: "Withdrawal",
-  RECHARGE: "Recharge",
+  PAYOUT: "Payout",
   ADJUSTMENT: "Adjustment",
 };
 
-/** Porter-style wallet: cash trips debit commission, online trips credit the driver; ops record recharges. */
-function WalletPanel({ id }: { id: string }) {
+/** The driver's ledger: earnings in, payouts out, admin adjustments with a note. Balance = sum. */
+function EarningsPanel({ id, earnings }: { id: string; earnings: DriverEarnings }) {
   const qc = useQueryClient();
-  const wallet = useQuery({
-    queryKey: ["driver-wallet", id],
-    queryFn: () => api.get<WalletView>(`/drivers/${id}/wallet`),
-  });
-  const [kind, setKind] = useState<"RECHARGE" | "ADJUSTMENT">("RECHARGE");
+  const isAdmin = getStaff()?.role === "ADMIN";
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const record = useMutation({
-    mutationFn: () => api.post(`/drivers/${id}/wallet/entries`, { kind, amount: Number(amount), note: note || null }),
+  const adjust = useMutation({
+    mutationFn: () => api.post(`/drivers/${id}/ledger/adjustments`, { amount: Number(amount), note }),
     onSuccess: () => {
       setAmount("");
       setNote("");
-      qc.invalidateQueries({ queryKey: ["driver-wallet", id] });
+      qc.invalidateQueries({ queryKey: ["driver-earnings", id] });
     },
   });
 
-  if (!wallet.data) return null;
-  const w = wallet.data;
-  const due = w.balance < w.minBalance ? -w.balance : 0;
   return (
     <div className="mt-6 rounded-lg border border-line p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink">Wallet</h3>
-        <div className={`text-lg font-semibold ${w.balance < 0 ? "text-red-600" : "text-navy"}`}>
-          {money(w.balance)}
+        <h3 className="text-sm font-semibold text-ink">Ledger</h3>
+        <div className={`text-lg font-semibold ${earnings.balance < 0 ? "text-red-600" : "text-navy"}`}>
+          {money(earnings.balance)} <span className="text-xs font-normal text-muted">owed to driver</span>
         </div>
       </div>
-      {due > 0 ? (
-        <p className="mt-1 text-sm text-red-600">
-          Owes {money(due)} in commission — cannot go online until recharged (floor {money(w.minBalance)}).
-        </p>
-      ) : (
-        <p className="mt-1 text-sm text-muted">
-          Cash trips debit commission, MoMo trips credit the driver&apos;s share. Floor {money(w.minBalance)}.
-        </p>
-      )}
 
-      <div className="mt-3 flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          <span className="mb-1 block text-muted">Record</span>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as "RECHARGE" | "ADJUSTMENT")}
-            className="rounded-lg border border-line px-2 py-2"
+      {isAdmin && (
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <Field label="Adjustment (RWF, ± )" value={amount} onChange={setAmount} />
+          <Field label="Why (required)" value={note} onChange={setNote} />
+          <button
+            onClick={() => adjust.mutate()}
+            disabled={adjust.isPending || !amount || Number.isNaN(Number(amount)) || !note.trim()}
+            className="rounded-lg bg-royal px-4 py-2 text-sm font-medium text-white hover:bg-blue disabled:opacity-60"
           >
-            <option value="RECHARGE">Recharge (driver paid in)</option>
-            <option value="ADJUSTMENT">Adjustment (+/-)</option>
-          </select>
-        </label>
-        <Field label="Amount (RWF)" value={amount} onChange={setAmount} />
-        <Field label="Note" value={note} onChange={setNote} />
-        <button
-          onClick={() => record.mutate()}
-          disabled={record.isPending || !amount || Number.isNaN(Number(amount))}
-          className="rounded-lg bg-royal px-4 py-2 text-sm font-medium text-white hover:bg-blue disabled:opacity-60"
-        >
-          {record.isPending ? "…" : "Record"}
-        </button>
-      </div>
-      {record.error && <p className="mt-2 text-sm text-red-600">{String(record.error)}</p>}
+            {adjust.isPending ? "…" : "Record"}
+          </button>
+        </div>
+      )}
+      {adjust.error && <p className="mt-2 text-sm text-red-600">{(adjust.error as Error).message}</p>}
 
       <ul className="mt-3 divide-y divide-line text-sm">
-        {w.entries.length === 0 && <li className="py-2 text-muted">No movements yet.</li>}
-        {w.entries.slice(0, 10).map((e) => (
+        {earnings.ledger.length === 0 && <li className="py-2 text-muted">No movements yet.</li>}
+        {earnings.ledger.slice(0, 15).map((e) => (
           <li key={e.id} className="flex items-center justify-between gap-3 py-2">
             <div>
-              <div className="font-medium">{WALLET_KIND_LABEL[e.kind]}</div>
+              <div className="font-medium">{LEDGER_KIND_LABEL[e.kind]}</div>
               <div className="text-xs text-muted">{e.note ?? e.createdAt.slice(0, 16).replace("T", " ")}</div>
             </div>
             <div className={`font-mono ${e.amount < 0 ? "text-red-600" : "text-green-700"}`}>

@@ -1,5 +1,3 @@
-import { TIER_META, type VehicleTier } from "./types";
-
 /** Whole-RWF money formatting for display. */
 export function money(value: number | null | undefined): string {
   if (value == null) return "—";
@@ -10,8 +8,6 @@ export function titleCase(s: string): string {
   return s.replace(/_/g, " ").toLowerCase();
 }
 
-/** "Pickup · up to 800 kg" — the same wording the customer sees in the app. */
-export function tierLabel(tier: VehicleTier, withCapacity = false): string {
-  const m = TIER_META[tier];
-  return withCapacity ? `${m.label} · ${m.capacity}` : m.label;
-}
+// Vehicle-type labels come from the API; re-exported here so the many call sites that already
+// import { tierLabel } from "@/lib/format" keep working.
+export { tierLabel } from "./vehicleTypes";

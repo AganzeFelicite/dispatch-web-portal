@@ -36,9 +36,14 @@ function authHeaders(extra: HeadersInit = {}): HeadersInit {
  * [ApiError] otherwise. A 401 clears the stored session so the app falls back to the login screen.
  */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // FormData must set its own Content-Type so the multipart boundary is included.
+  const isFormData = init.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: authHeaders({ "Content-Type": "application/json", ...(init.headers ?? {}) }),
+    headers: authHeaders({
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...(init.headers ?? {}),
+    }),
   });
 
   const body = (await res.json().catch(() => null)) as Envelope<T> | null;

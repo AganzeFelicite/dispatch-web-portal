@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { money, tierLabel } from "@/lib/format";
-import { TIERS, type Paginated, type RateCard, type VehicleTier } from "@/lib/types";
+import { useVehicleTypes } from "@/lib/vehicleTypes";
+import { type Paginated, type RateCard, type VehicleTier } from "@/lib/types";
 
 export default function RateCardsPage() {
   const qc = useQueryClient();
@@ -13,7 +14,12 @@ export default function RateCardsPage() {
     queryFn: () => api.get<Paginated<RateCard>>("/rate-cards?limit=100"),
   });
 
-  const [tier, setTier] = useState<VehicleTier>("PICKUP");
+  const { data: vehicleTypes } = useVehicleTypes();
+  // Empty until the types load; the effect below selects the first one ops listed.
+  const [tier, setTier] = useState<VehicleTier>("");
+  useEffect(() => {
+    if (!tier && vehicleTypes?.length) setTier(vehicleTypes[0].code);
+  }, [tier, vehicleTypes]);
   const [zone, setZone] = useState("kigali");
   const [baseFare, setBaseFare] = useState("5000");
   const [perKm, setPerKm] = useState("1200");
@@ -53,9 +59,9 @@ export default function RateCardsPage() {
               onChange={(e) => setTier(e.target.value as VehicleTier)}
               className="w-full rounded-lg border border-line px-2 py-2"
             >
-              {TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {tierLabel(t, true)}
+              {(vehicleTypes ?? []).map((t) => (
+                <option key={t.code} value={t.code}>
+                  {tierLabel(t.code, true)}
                 </option>
               ))}
             </select>

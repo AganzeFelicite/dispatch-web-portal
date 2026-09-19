@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MapPicker, { type LatLngText } from "@/components/MapPicker";
 import { api } from "@/lib/api";
 import { money, tierLabel, titleCase } from "@/lib/format";
-import { TIERS, type QuoteResult, type VehicleTier } from "@/lib/types";
+import { useVehicleTypes } from "@/lib/vehicleTypes";
+import { type QuoteResult, type VehicleTier } from "@/lib/types";
 
 type Draft = { text: string; lat: number | null; lng: number | null };
 const empty: Draft = { text: "", lat: null, lng: null };
@@ -33,12 +34,16 @@ export function BookingForm({
   disabled?: boolean;
   onCreated: (created: { id: string; reference: string }) => void;
 }) {
-  const [tier, setTier] = useState<VehicleTier>("PICKUP");
+  const { data: vehicleTypes } = useVehicleTypes();
+  // Empty until the types load; the effect below selects the first one ops listed.
+  const [tier, setTier] = useState<VehicleTier>("");
+  useEffect(() => {
+    if (!tier && vehicleTypes?.length) setTier(vehicleTypes[0].code);
+  }, [tier, vehicleTypes]);
   const [pickup, setPickup] = useState<Draft>(empty);
   const [dropoff, setDropoff] = useState<Draft>(empty);
   const [distanceKm, setDistanceKm] = useState("");
   const [notes, setNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "MOMO">("MOMO");
   const [receiverName, setReceiverName] = useState("");
   const [receiverPhone, setReceiverPhone] = useState("");
   const [goodsType, setGoodsType] = useState("");
@@ -70,7 +75,6 @@ export function BookingForm({
         notes: notes || null,
         ...(portal
           ? {
-              paymentMethod,
               receiverName: receiverName || null,
               receiverPhone: receiverPhone || null,
               goodsType: goodsType || null,
@@ -109,8 +113,8 @@ export function BookingForm({
           <label className="text-sm">
             <span className="mb-1 block text-muted">Vehicle</span>
             <select value={tier} onChange={(e) => setTier(e.target.value as VehicleTier)} className={field}>
-              {TIERS.map((t) => (
-                <option key={t} value={t}>{tierLabel(t, true)}</option>
+              {(vehicleTypes ?? []).map((t) => (
+                <option key={t.code} value={t.code}>{tierLabel(t.code, true)}</option>
               ))}
             </select>
           </label>
@@ -145,13 +149,6 @@ export function BookingForm({
             <label className="text-sm">
               <span className="mb-1 block text-muted">Goods</span>
               <input value={goodsType} onChange={(e) => setGoodsType(e.target.value)} placeholder="Fresh produce, documents, furniture…" className={field} />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-muted">Payment</span>
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "MOMO")} className={field}>
-                <option value="MOMO">Mobile Money after delivery</option>
-                <option value="CASH">Cash to the driver</option>
-              </select>
             </label>
             <label className="text-sm">
               <span className="mb-1 block text-muted">Receiver name</span>

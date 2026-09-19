@@ -1,7 +1,20 @@
 // TypeScript mirrors of the backend DTOs. Amounts are BigDecimal server-side, serialized as
 // JSON numbers.
 
-export type VehicleTier = "PICKUP" | "MINI_TRUCK";
+/** A vehicle type code, e.g. "MINI_TRUCK". The set lives in the database, not here. */
+export type VehicleTier = string;
+
+/** A bookable vehicle type, managed by ops on /vehicle-types. */
+export interface VehicleType {
+  id: string;
+  code: string;
+  label: string;
+  capacity: string;
+  blurb: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  isActive: boolean;
+}
 
 export type BookingStatus =
   | "NEW"
@@ -13,18 +26,8 @@ export type BookingStatus =
 
 export type StaffRole = "ADMIN" | "OPS";
 export type DriverStatus = "PENDING" | "VERIFIED" | "SUSPENDED";
-export type PaymentMethod = "MOMO" | "CASH";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
 export type PayoutStatus = "PENDING" | "SENT" | "FAILED";
-
-/** The trucks an ops booking can be placed on, a driver can own, and a rate card can price. */
-export const TIERS: VehicleTier[] = ["PICKUP", "MINI_TRUCK"];
-
-/** Customer-facing names + capacity lines, kept identical to mobile/lib/core/vehicle.dart. */
-export const TIER_META: Record<VehicleTier, { label: string; capacity: string }> = {
-  PICKUP: { label: "Pickup", capacity: "up to 800 kg" },
-  MINI_TRUCK: { label: "Mini truck", capacity: "up to 2 tonnes" },
-};
 
 export interface PageMeta {
   nextCursor: string | null;
@@ -53,6 +56,8 @@ export interface BookingRow {
   quotedPrice: number | null;
   assignedDriverName: string | null;
   createdAt: string;
+  /** Null until the customer starts paying. NEW + not PAID = awaiting payment; nothing dispatches. */
+  paymentStatus?: PaymentStatus | null;
 }
 
 export interface Party {
@@ -100,7 +105,6 @@ export interface BookingDetail {
   driverEarning?: number | null;
   rating?: number | null;
   ratingComment?: string | null;
-  paymentMethod?: string;
   awaitingAcceptance?: boolean;
   /** Receiver tracking page (no login); null until a driver is assigned. */
   shareUrl?: string | null;
@@ -188,28 +192,38 @@ export interface RateCard {
   effectiveFrom: string;
 }
 
+/** The customer's payment for a booking. PAID comes only from the provider webhook or an admin record. */
 export interface PaymentView {
   id: string;
   bookingId: string;
-  method: PaymentMethod;
+  /** Our reference, echoed by the provider's webhook. */
+  reference: string;
   amount: number;
+  takeRatePct: number;
   commissionAmount: number;
   driverPayout: number;
   status: PaymentStatus;
+  /** The provider's transaction id. */
   providerRef: string | null;
   paidAt: string | null;
+  failedAt: string | null;
+  failureReason: string | null;
+  refundedAt: string | null;
+  /** True while MoMo is simulated (MTN sandbox pending): the prompt confirms itself in seconds. */
+  simulated?: boolean;
 }
 
+/** Money sent to a driver against their ledger balance. */
 export interface Payout {
   id: string;
   driverId: string;
   driverName: string;
-  bookingId: string | null;
-  bookingReference: string | null;
   amount: number;
   status: PayoutStatus;
   providerRef: string | null;
   sentAt: string | null;
+  failedAt: string | null;
+  failureReason: string | null;
   createdAt: string;
 }
 
@@ -225,22 +239,35 @@ export interface DailyMetrics {
   driverPayout: number;
 }
 
-export type WalletEntryKind = "TRIP_EARNING" | "CASH_COMMISSION" | "WITHDRAWAL" | "RECHARGE" | "ADJUSTMENT";
+export type LedgerEntryKind = "TRIP_EARNING" | "PAYOUT" | "ADJUSTMENT";
 
-export interface WalletEntry {
+/** One signed movement on a driver's ledger. Append-only; the balance is the sum. */
+export interface LedgerEntry {
   id: string;
-  kind: WalletEntryKind;
+  kind: LedgerEntryKind;
   amount: number;
   bookingId: string | null;
+  payoutId: string | null;
   note: string | null;
   createdAt: string;
 }
 
-/** Driver wallet (Porter-style settlement): balance = sum of signed entries. */
-export interface WalletView {
+export interface EarningsSummary {
+  from: string;
+  to: string;
+  trips: number;
+  gross: number;
+  commission: number;
+  driverShare: number;
+}
+
+/** A driver's earnings: the window summary, and the ledger that backs the balance. */
+export interface DriverEarnings {
+  driverId: string;
+  summary: EarningsSummary;
   balance: number;
   minBalance: number;
-  entries: WalletEntry[];
+  ledger: LedgerEntry[];
 }
 
 export interface IssueView {

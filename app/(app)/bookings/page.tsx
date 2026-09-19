@@ -16,10 +16,14 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   CANCELLED: "bg-red-100 text-red-700",
 };
 
-function StatusBadge({ status }: { status: BookingStatus }) {
+function StatusBadge({ status, paymentStatus }: { status: BookingStatus; paymentStatus?: string | null }) {
+  // A NEW booking is not dispatched until it is paid, so the board says which of the two it is waiting for.
+  const awaitingPayment = status === "NEW" && paymentStatus !== "PAID";
   return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[status]}`}>
-      {titleCase(status)}
+    <span
+      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${awaitingPayment ? "bg-amber-50 text-amber-800" : STATUS_STYLES[status]}`}
+    >
+      {awaitingPayment ? "awaiting payment" : titleCase(status)}
     </span>
   );
 }
@@ -80,7 +84,7 @@ export default function BookingsPage() {
                   <td className="px-4 py-3">{b.assignedDriverName ?? "—"}</td>
                   <td className="px-4 py-3">{money(b.quotedPrice)}</td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={b.status} />
+                    <StatusBadge status={b.status} paymentStatus={b.paymentStatus} />
                   </td>
                 </tr>
               ))}

@@ -10,6 +10,7 @@ const NAV = [
   { href: "/bookings", label: "Bookings" },
   { href: "/customers", label: "Customers" },
   { href: "/drivers", label: "Drivers" },
+  { href: "/vehicle-types", label: "Vehicle types" },
   { href: "/rate-cards", label: "Rate cards" },
   { href: "/payouts", label: "Payouts" },
   { href: "/issues", label: "Issues" },

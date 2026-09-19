@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import MapPicker from "@/components/MapPicker";
 import { ApiError, api } from "@/lib/api";
+import { getStaff } from "@/lib/auth";
 import { money, tierLabel, titleCase } from "@/lib/format";
 import type {
   BookingDetail,
@@ -12,7 +13,6 @@ import type {
   DriverDetail,
   DriverRow,
   Paginated,
-  PaymentMethod,
   PaymentView,
   VehicleTier,
 } from "@/lib/types";
@@ -269,62 +269,96 @@ function AssignPanel({
 
 function PaymentPanel({ bookingId }: { bookingId: string }) {
   const qc = useQueryClient();
-  const [method, setMethod] = useState<PaymentMethod>("CASH");
+  const [providerRef, setProviderRef] = useState("");
+  const isAdmin = getStaff()?.role === "ADMIN";
 
   const payment = useQuery({
     queryKey: ["payment", bookingId],
     queryFn: () => api.get<PaymentView>(`/bookings/${bookingId}/payment`),
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 1,
+    // While the customer is approving (or the simulator is counting down), watch it land.
+    refetchInterval: (q) => (q.state.data?.status === "PENDING" ? 4000 : false),
   });
 
+  // Admin only: the customer sent MoMo to the business number and it is on the statement.
   const record = useMutation({
-    mutationFn: () => api.post(`/bookings/${bookingId}/payment`, { method, recordOnly: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["payment", bookingId] }),
+    mutationFn: () => api.post(`/bookings/${bookingId}/payment`, { providerRef: providerRef.trim() }),
+    onSuccess: () => {
+      setProviderRef("");
+      qc.invalidateQueries({ queryKey: ["payment", bookingId] });
+      qc.invalidateQueries({ queryKey: ["booking", bookingId] });
+    },
   });
 
   const notFound = payment.error instanceof ApiError && payment.error.status === 404;
+  const p = payment.data;
+  const canRecord = !p || p.status === "PENDING" || p.status === "FAILED";
 
   return (
     <section className="mt-6 rounded-xl border border-line bg-surface p-5">
-      <h2 className="mb-3 text-sm font-semibold text-ink">Payment</h2>
-      {payment.data ? (
+      <h2 className="mb-3 text-sm font-semibold text-ink">Payment · MoMo</h2>
+      {p ? (
         <div className="text-sm">
           <p>
-            {money(payment.data.amount)} · {titleCase(payment.data.method)} ·{" "}
-            {titleCase(payment.data.status)}
+            {money(p.amount)} · <StatusPill status={p.status} />
           </p>
           <p className="mt-1 text-xs text-muted">
-            Commission {money(payment.data.commissionAmount)} · Driver{" "}
-            {money(payment.data.driverPayout)}
+            Commission {money(p.commissionAmount)} ({p.takeRatePct}%) · Driver {money(p.driverPayout)}
           </p>
+          <p className="mt-1 font-mono text-xs text-muted">
+            ref {p.reference}
+            {p.providerRef && ` · MoMo ${p.providerRef}`}
+          </p>
+          {p.status === "PENDING" && (
+            <p className="mt-1 text-xs text-muted">
+              {p.simulated
+                ? "Simulated MoMo (MTN sandbox pending): confirms itself in a few seconds, through the same webhook path."
+                : "Waiting for the customer to approve the prompt. The trip is dispatched once the provider confirms."}
+            </p>
+          )}
+          {p.simulated && p.status === "PAID" && <p className="mt-1 text-xs text-amber-700">Simulated payment — not real money.</p>}
+          {p.status === "FAILED" && p.failureReason && (
+            <p className="mt-1 text-xs text-red-600">{p.failureReason}</p>
+          )}
+          {p.status === "REFUNDED" && <p className="mt-1 text-xs text-muted">Refunded {p.refundedAt?.slice(0, 16).replace("T", " ")}</p>}
         </div>
       ) : notFound ? (
-        <div className="flex flex-wrap items-end gap-3">
+        <p className="text-sm text-muted">Not paid yet. The customer pays from the app; a driver is sent once the money is in.</p>
+      ) : (
+        <p className="text-sm text-muted">Loading…</p>
+      )}
+
+      {isAdmin && canRecord && (
+        <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-line pt-4">
           <label className="text-sm">
-            <span className="mb-1 block text-muted">Method</span>
-            <select
-              value={method}
-              onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-              className="rounded-lg border border-line px-2 py-2"
-            >
-              <option value="CASH">Cash</option>
-              <option value="MOMO">MoMo</option>
-            </select>
+            <span className="mb-1 block text-muted">Record a transfer seen on the statement — MoMo transaction id</span>
+            <input
+              value={providerRef}
+              onChange={(e) => setProviderRef(e.target.value)}
+              placeholder="e.g. 8827364591"
+              className="w-72 rounded-lg border border-line px-3 py-2 font-mono"
+            />
           </label>
           <button
             onClick={() => record.mutate()}
-            disabled={record.isPending}
+            disabled={record.isPending || !providerRef.trim()}
             className="rounded-lg bg-royal px-4 py-2 text-sm font-medium text-white hover:bg-blue disabled:opacity-60"
           >
             Record payment
           </button>
           {record.error && <p className="text-sm text-red-600">{(record.error as Error).message}</p>}
         </div>
-      ) : (
-        <p className="text-sm text-muted">Loading…</p>
       )}
     </section>
   );
+}
+
+function StatusPill({ status }: { status: PaymentView["status"] }) {
+  const cls =
+    status === "PAID" ? "bg-green-50 text-green-700" :
+    status === "PENDING" ? "bg-amber-50 text-amber-700" :
+    status === "REFUNDED" ? "bg-slate-100 text-slate-600" : "bg-red-50 text-red-700";
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{titleCase(status)}</span>;
 }
 
 function Card({
