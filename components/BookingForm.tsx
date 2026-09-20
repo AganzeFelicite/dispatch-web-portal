@@ -137,7 +137,9 @@ export function BookingForm({
         {quote && (
           <p className="mt-3 text-sm">
             Quote: <span className="font-semibold text-navy">{money(quote.price)}</span> · {quote.distanceKm} km ·{" "}
-            {titleCase(quote.breakdown.applied)}
+            {quote.breakdown.extraKm > 0
+              ? `base incl. ${quote.breakdown.includedKm} km + ${quote.breakdown.extraKm} km × ${quote.breakdown.perKm}`
+              : `base fare (first ${quote.breakdown.includedKm} km)`}
           </p>
         )}
       </section>

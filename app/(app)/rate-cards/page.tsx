@@ -23,7 +23,7 @@ export default function RateCardsPage() {
   const [zone, setZone] = useState("kigali");
   const [baseFare, setBaseFare] = useState("5000");
   const [perKm, setPerKm] = useState("1200");
-  const [minFare, setMinFare] = useState("10000");
+  const [includedKm, setIncludedKm] = useState("4");
   const [takeRatePct, setTakeRatePct] = useState("15");
 
   const create = useMutation({
@@ -33,7 +33,7 @@ export default function RateCardsPage() {
         zone,
         baseFare: Number(baseFare),
         perKm: Number(perKm),
-        minFare: Number(minFare),
+        includedKm: Number(includedKm),
         takeRatePct: Number(takeRatePct),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["rate-cards"] }),
@@ -69,7 +69,7 @@ export default function RateCardsPage() {
           <Field label="Zone" value={zone} onChange={setZone} />
           <Field label="Base fare" value={baseFare} onChange={setBaseFare} />
           <Field label="Per km" value={perKm} onChange={setPerKm} />
-          <Field label="Min fare" value={minFare} onChange={setMinFare} />
+          <Field label="Included km" value={includedKm} onChange={setIncludedKm} />
           <Field label="Take %" value={takeRatePct} onChange={setTakeRatePct} />
         </div>
         {create.error && (
@@ -95,7 +95,7 @@ export default function RateCardsPage() {
                 <th className="px-4 py-3">Zone</th>
                 <th className="px-4 py-3">Base</th>
                 <th className="px-4 py-3">Per km</th>
-                <th className="px-4 py-3">Min</th>
+                <th className="px-4 py-3">Incl. km</th>
                 <th className="px-4 py-3">Take %</th>
                 <th className="px-4 py-3">Active</th>
                 <th className="px-4 py-3"></th>
@@ -108,7 +108,7 @@ export default function RateCardsPage() {
                   <td className="px-4 py-3">{c.zone}</td>
                   <td className="px-4 py-3">{money(c.baseFare)}</td>
                   <td className="px-4 py-3">{money(c.perKm)}</td>
-                  <td className="px-4 py-3">{money(c.minFare)}</td>
+                  <td className="px-4 py-3">{c.includedKm} km</td>
                   <td className="px-4 py-3">{c.takeRatePct}%</td>
                   <td className="px-4 py-3">
                     {c.active ? (

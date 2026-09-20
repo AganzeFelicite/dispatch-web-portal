@@ -116,7 +116,8 @@ export interface QuoteResult {
   distanceKm: number;
   price: number;
   rateCardId: string;
-  breakdown: { baseFare: number; perKm: number; minFare: number; applied: string };
+  /** base covers the first includedKm; extraKm is what was charged per-km on top. */
+  breakdown: { baseFare: number; perKm: number; includedKm: number; extraKm: number };
 }
 
 /** A customer's account dashboard (GET /customer/dashboard, GET /customers/{id}/dashboard). */
@@ -186,7 +187,8 @@ export interface RateCard {
   zone: string;
   baseFare: number;
   perKm: number;
-  minFare: number;
+  /** Km the base fare includes; per-km applies beyond. */
+  includedKm: number;
   takeRatePct: number;
   active: boolean;
   effectiveFrom: string;
