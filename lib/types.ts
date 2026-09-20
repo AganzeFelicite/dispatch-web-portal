@@ -14,6 +14,10 @@ export interface VehicleType {
   imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
+  /** COMMISSION: rate-card take rate per fare. PASS: drivers buy a pass (fee, days) to work. */
+  driverModel: "COMMISSION" | "PASS";
+  passFee: number | null;
+  passDays: number | null;
 }
 
 export type BookingStatus =
@@ -238,10 +242,14 @@ export interface DailyMetrics {
   paidCount: number;
   collected: number;
   commission: number;
+  /** Passes bought by bike drivers that day. */
+  passFees: number;
+  /** commission + passFees. */
+  platformRevenue: number;
   driverPayout: number;
 }
 
-export type LedgerEntryKind = "TRIP_EARNING" | "PAYOUT" | "ADJUSTMENT";
+export type LedgerEntryKind = "TRIP_EARNING" | "PAYOUT" | "ADJUSTMENT" | "PASS_FEE";
 
 /** One signed movement on a driver's ledger. Append-only; the balance is the sum. */
 export interface LedgerEntry {

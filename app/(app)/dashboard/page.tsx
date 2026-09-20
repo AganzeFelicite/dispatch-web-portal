@@ -60,6 +60,8 @@ export default function DashboardPage() {
           <Tile label="Payments" value={String(data.paidCount)} />
           <Tile label="Collected" value={money(data.collected)} />
           <Tile label="Commission" value={money(data.commission)} />
+          <Tile label="Pass fees" value={money(data.passFees)} />
+          <Tile label="Platform revenue" value={money(data.platformRevenue)} />
           <Tile label="Driver payouts" value={money(data.driverPayout)} />
         </div>
       )}

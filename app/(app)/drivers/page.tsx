@@ -216,6 +216,7 @@ const LEDGER_KIND_LABEL: Record<LedgerEntryKind, string> = {
   TRIP_EARNING: "Trip earning",
   PAYOUT: "Payout",
   ADJUSTMENT: "Adjustment",
+  PASS_FEE: "Weekly pass",
 };
 
 /** The driver's ledger: earnings in, payouts out, admin adjustments with a note. Balance = sum. */

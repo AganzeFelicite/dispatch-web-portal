@@ -21,6 +21,9 @@ export default function VehicleTypesPage() {
   const [capacity, setCapacity] = useState("");
   const [blurb, setBlurb] = useState("");
   const [sortOrder, setSortOrder] = useState("100");
+  const [driverModel, setDriverModel] = useState<"COMMISSION" | "PASS">("COMMISSION");
+  const [passFee, setPassFee] = useState("3000");
+  const [passDays, setPassDays] = useState("7");
 
   const create = useMutation({
     mutationFn: () =>
@@ -30,6 +33,9 @@ export default function VehicleTypesPage() {
         capacity: capacity.trim(),
         blurb: blurb.trim() || null,
         sortOrder: Number(sortOrder) || 100,
+        driverModel,
+        passFee: driverModel === "PASS" ? Number(passFee) : null,
+        passDays: driverModel === "PASS" ? Number(passDays) : null,
       }),
     onSuccess: () => {
       setCode("");
@@ -85,6 +91,32 @@ export default function VehicleTypesPage() {
             <span className="mb-1 block text-muted">Order</span>
             <input value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className={field} />
           </label>
+        </div>
+        <div className="mt-4 rounded-lg border border-line bg-canvas p-4">
+          <p className="mb-2 text-sm font-semibold text-ink">How Dispatch earns on this type</p>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={driverModel === "COMMISSION"} onChange={() => setDriverModel("COMMISSION")} />
+              <span><b>Commission</b> — the rate card's take rate on every fare (trucks)</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={driverModel === "PASS"} onChange={() => setDriverModel("PASS")} />
+              <span><b>Pass</b> — drivers buy a pass to work and keep 100% of fares (bikes)</span>
+            </label>
+          </div>
+          {driverModel === "PASS" && (
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="text-sm">
+                <span className="mb-1 block text-muted">Pass fee (RWF)</span>
+                <input value={passFee} onChange={(e) => setPassFee(e.target.value)} className={field} style={{ width: 140 }} />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-muted">Valid for (days)</span>
+                <input value={passDays} onChange={(e) => setPassDays(e.target.value)} className={field} style={{ width: 120 }} />
+              </label>
+              <p className="text-xs text-muted">A driver without an active pass cannot go online or receive offers. They renew from earnings or by MoMo.</p>
+            </div>
+          )}
         </div>
         <p className="mt-2 text-xs text-muted">
           The code is stored on every booking and cannot be changed later. Upper snake case, e.g.{" "}
@@ -167,7 +199,12 @@ function TypeCard({
           <p className="font-mono text-xs text-muted">{type.code}</p>
           <p className="mt-1 text-sm text-muted">{type.capacity}</p>
           {type.blurb && <p className="text-sm text-muted">{type.blurb}</p>}
-          <p className="mt-1 text-xs text-muted">Order {type.sortOrder}</p>
+          <p className="mt-1 text-xs text-muted">
+            Order {type.sortOrder} ·{" "}
+            {type.driverModel === "PASS"
+              ? `Pass ${type.passFee?.toLocaleString()} RWF / ${type.passDays} days`
+              : "Commission (rate card)"}
+          </p>
         </div>
       </div>
 
@@ -189,6 +226,20 @@ function TypeCard({
           className="rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-canvas disabled:opacity-50"
         >
           {uploading ? "Uploading…" : type.imageUrl ? "Replace image" : "Upload image"}
+        </button>
+        <button
+          onClick={() => {
+            if (type.driverModel === "PASS") {
+              onUpdate({ id: type.id, body: { driverModel: "COMMISSION" } });
+            } else {
+              const fee = Number(window.prompt("Pass fee (RWF)", "3000") ?? "");
+              const days = Number(window.prompt("Valid for (days)", "7") ?? "");
+              if (fee > 0 && days > 0) onUpdate({ id: type.id, body: { driverModel: "PASS", passFee: fee, passDays: days } });
+            }
+          }}
+          className="rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-canvas"
+        >
+          {type.driverModel === "PASS" ? "Switch to commission" : "Switch to pass"}
         </button>
         <button
           onClick={() => onUpdate({ id: type.id, body: { isActive: !type.isActive } })}
